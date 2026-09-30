@@ -29,9 +29,31 @@ jobs:
       - name: Install Claude Code
         run: npm i -g @anthropic-ai/claude-code
 
+      # 인증은 둘 중 하나만 있으면 된다.
+      #  - CLAUDE_CODE_OAUTH_TOKEN: `claude setup-token` 으로 발급. Pro/Max 구독 한도에서 차감 (추천)
+      #  - ANTHROPIC_API_KEY: 종량과금. Console 에 크레딧 잔액이 있어야 한다
+      #
+      # 주의: 인증 해석 순서가 ANTHROPIC_API_KEY -> OAuth 라서, 둘 다 주입하면
+      # 크레딧이 0 인 API 키가 먼저 잡혀 실패한다. 그래서 아래 Run 스텝은
+      # OAUTH 토큰이 있을 때 ANTHROPIC_API_KEY 를 의도적으로 빈 값으로 덮는다.
+      - name: Check auth
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$OAUTH" ]; then
+            echo "인증: 구독 (CLAUDE_CODE_OAUTH_TOKEN)"
+          elif [ -n "$APIKEY" ]; then
+            echo "인증: 종량과금 (ANTHROPIC_API_KEY)"
+          else
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN 또는 ANTHROPIC_API_KEY 중 하나를 secrets 에 넣어야 한다."
+            exit 1
+          fi
+
       - name: Run
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && '' || secrets.ANTHROPIC_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
           NOTION_DS_ID: ${{ secrets.NOTION_DS_ID }}

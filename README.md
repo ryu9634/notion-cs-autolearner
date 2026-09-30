@@ -99,18 +99,34 @@ Notion DB에 오늘 자 페이지 2개가 생기면 성공. 실패하면 `logs/`
 
 ### 6. GitHub Actions 등록
 
-레포 **Settings > Secrets and variables > Actions** 에 4개 등록:
+레포 **Settings > Secrets and variables > Actions** 에 등록:
 
-| Secret | 값 |
-|---|---|
-| `ANTHROPIC_API_KEY` | `sk-ant-...` |
-| `NOTION_TOKEN` | `ntn_...` |
-| `NOTION_DB_ID` | 32자 hex |
-| `NOTION_DS_ID` | verify 스크립트가 알려준 값 |
+| Secret | 값 | 필수 |
+|---|---|---|
+| `NOTION_TOKEN` | `ntn_...` | ✅ |
+| `NOTION_DB_ID` | 32자 hex | ✅ |
+| `NOTION_DS_ID` | verify 스크립트가 알려준 값 | ✅ |
+| `CLAUDE_CODE_OAUTH_TOKEN` | `claude setup-token` 출력값 | 둘 중 하나 |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` | 둘 중 하나 |
 
-> **비용 주의**: GitHub Actions에서는 Claude Code 구독 인증을 쓸 수 없어서
-> 종량과금 API 키가 필요하다. 로컬 스케줄(launchd)로 돌리면 구독 한도를 쓸 수 있다.
-> 어느 쪽이든 **Notion DB가 진도의 단일 출처**라서 섞어 써도 중복이 안 생긴다.
+### 인증: 구독형 vs 종량과금
+
+**Actions에서도 Pro/Max 구독을 쓸 수 있다.** 로컬에서 한 번 발급하면 된다:
+
+```bash
+claude setup-token     # 브라우저 OAuth → 장기 토큰 출력
+```
+
+출력된 토큰을 `CLAUDE_CODE_OAUTH_TOKEN` secret 에 넣으면 구독 한도에서 차감되고
+API 크레딧 충전이 필요 없다. 종량과금 API 키를 쓰려면 `ANTHROPIC_API_KEY` 를 넣는다
+(구독료와 **별개 지갑**이라 Console 에 크레딧을 충전해야 한다).
+
+> **함정**: 인증 해석 순서가 `ANTHROPIC_API_KEY` → OAuth 다.
+> 둘 다 등록하면 API 키가 먼저 잡혀서, 크레딧이 0 이면 구독 토큰이 있어도 실패한다.
+> 워크플로가 이걸 막아주긴 하지만 (`CLAUDE_CODE_OAUTH_TOKEN` 이 있으면 API 키를 빈 값으로 덮는다),
+> 로컬 `.env` 에서는 직접 한쪽을 비워둬야 한다.
+
+**Notion DB가 진도의 단일 출처**라서 로컬/Actions 를 섞어 써도 중복이 안 생긴다.
 
 등록 후 Actions 탭에서 `CS Daily` > `Run workflow` 로 수동 1회 실행해 검증한다.
 
