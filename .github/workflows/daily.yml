@@ -1,0 +1,46 @@
+name: CS Daily
+
+on:
+  schedule:
+    # KST 07:00 월~금  =  UTC 22:00 일~목
+    - cron: '0 22 * * 0-4'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'daily 또는 weekly'
+        required: false
+        default: 'daily'
+
+concurrency:
+  group: cs-daily
+  cancel-in-progress: false
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm i -g @anthropic-ai/claude-code
+
+      - name: Run
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
+          NOTION_DS_ID: ${{ secrets.NOTION_DS_ID }}
+        run: bash scripts/run-daily.sh "${{ github.event.inputs.mode || 'daily' }}"
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ github.run_id }}
+          path: logs/
+          retention-days: 14
