@@ -4,7 +4,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 if [ -f .env ]; then
-  set -a; source <(grep -Ev '^[[:space:]]*(#|$)' .env); set +a
+  set -a; . ./.env; set +a
 fi
 command -v jq >/dev/null || { echo "jq 가 없다: brew install jq"; exit 1; }
 : "${NOTION_TOKEN:?NOTION_TOKEN 없음}"

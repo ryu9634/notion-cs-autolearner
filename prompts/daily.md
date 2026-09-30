@@ -27,21 +27,29 @@
 
 ### Step 2. Notion DB 진도 스캔
 
-8개 카테고리 각각에 대해 `notion-search` 를 호출한다:
+`mcp__notion__API-query-data-source` 로 DB 전체를 읽는다. 카테고리별로 나눠 부르지 말고
+한 번에 페이지네이션으로 다 긁는 게 싸고 정확하다:
 
 ```
-notion-search({
-  query: "<카테고리 이모지 + 이름>",   // 예: "☕ JVM/자바 언어"
-  data_source_url: "<프롬프트 하단 런타임 컨텍스트의 Data Source URL>",
-  page_size: 25,
-  filters: {}
+mcp__notion__API-query-data-source({
+  data_source_id: "<런타임 컨텍스트의 Notion Data Source ID>",
+  page_size: 100
+  // 응답에 has_more:true 면 start_cursor:<next_cursor> 로 이어서 호출한다
 })
 ```
 
-각 결과에서 `Title`, `Category`, `Level`, `Date` 를 추출해 **이미 만들어진 주제 목록**을
-카테고리 × 레벨 별로 정리한다.
+각 결과의 `properties` 에서 `Title`, `Category`, `Level`, `Date` 를 추출해
+**이미 만들어진 주제 목록**을 카테고리 × 레벨 별로 정리한다.
+`📊 주간 요약` 페이지도 같은 응답에 섞여 나오므로 `Category` 로 분리하면 된다.
 
-추가로 `notion-search({ query: "📊 주간 요약", page_size: 10, ... })` 로 기존 주간요약도 조회한다.
+**도구 이름 주의**: 이 스크립트가 붙이는 MCP 서버는 `@notionhq/notion-mcp-server` 이고,
+도구 이름은 `API-` 접두사를 쓴다 (`API-query-data-source`, `API-post-page`, ...).
+claude.ai Notion 커넥터의 `notion-search` / `notion-fetch` 는 여기서 쓸 수 없다
+(`run-daily.sh` 의 `--allowed-tools` 가 `mcp__notion__*` 만 허용한다).
+
+**API 버전 주의**: `/v1/data_sources/...` 엔드포인트는 Notion-Version `2025-09-03` 이상에서만
+존재한다. `.mcp.json` 이 그 버전을 보내도록 돼 있다 — 거기를 `2022-06-28` 로 내리면
+이 Step 이 `invalid_request_url` 로 죽는다.
 
 ### Step 3. 오늘 이미 처리됐는지 체크
 

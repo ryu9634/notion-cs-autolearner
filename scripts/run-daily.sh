@@ -8,10 +8,13 @@ mkdir -p logs
 # .env 로드 (로컬용. CI 에서는 env/secrets 로 이미 주입됨)
 if [ -f .env ]; then
   set -a
-  # shellcheck disable=SC1090
-  source <(grep -Ev '^[[:space:]]*(#|$)' .env)
+  # shellcheck disable=SC1091
+  . ./.env
   set +a
 fi
+
+# 사후 검증 단계에서 필요하다. 없으면 검증이 조용히 건너뛰어지므로 여기서 막는다.
+command -v jq >/dev/null || { echo "jq 가 없다: brew install jq (CI 러너에는 기본 설치돼 있다)"; exit 1; }
 
 : "${NOTION_TOKEN:?NOTION_TOKEN 이 없다. .env 또는 secrets 확인}"
 : "${NOTION_DB_ID:?NOTION_DB_ID 가 없다. .env 또는 secrets 확인}"
@@ -58,5 +61,32 @@ CTX
   2>&1 | tee -a "$LOG_FILE"
 
 EXIT_CODE=${PIPESTATUS[0]}
+
+# claude -p 는 인증 실패(크레딧 부족 등)에도 0 을 반환한다. 그래서 종료코드만
+# 믿으면 CI 가 조용히 초록불이 된다. Notion DB 에 오늘 자 페이지가 실제로
+# 생겼는지를 성공의 기준으로 삼는다 — DB 가 진도의 단일 출처라는 원칙과도 맞다.
+if [ "$EXIT_CODE" -eq 0 ]; then
+  RESP=$(curl -sS -X POST "https://api.notion.com/v1/data_sources/${NOTION_DS_ID}/query" \
+    -H "Authorization: Bearer ${NOTION_TOKEN}" \
+    -H "Notion-Version: 2025-09-03" \
+    -H "content-type: application/json" \
+    -d "{\"filter\":{\"property\":\"Date\",\"date\":{\"equals\":\"${TODAY}\"}},\"page_size\":10}")
+
+  if [ "$(echo "$RESP" | jq -r '.object')" = "error" ]; then
+    echo "  ✗ 사후 검증 실패: $(echo "$RESP" | jq -r '.code + ": " + .message')" | tee -a "$LOG_FILE"
+    EXIT_CODE=1
+  else
+    CREATED=$(echo "$RESP" | jq -r '.results | length')
+    EXPECTED=2
+    [ "$MODE" = "weekly" ] && EXPECTED=1
+    if [ "$CREATED" -lt "$EXPECTED" ]; then
+      echo "  ✗ 오늘($TODAY) 자 페이지가 ${CREATED}개뿐이다 (기대 ${EXPECTED}개). 위 로그에서 원인을 확인해라." | tee -a "$LOG_FILE"
+      EXIT_CODE=1
+    else
+      echo "  ✓ 오늘($TODAY) 자 페이지 ${CREATED}개 확인" | tee -a "$LOG_FILE"
+    fi
+  fi
+fi
+
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] 종료 (exit=$EXIT_CODE)" | tee -a "$LOG_FILE"
 exit "$EXIT_CODE"
