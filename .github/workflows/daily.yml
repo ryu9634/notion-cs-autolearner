@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'daily 또는 weekly'
+        description: 'auto(평일 daily / 주말 weekend) | daily | weekend | weekly'
         required: false
-        default: 'daily'
+        default: 'auto'
 
 # 학습 기록(til/)을 레포에 커밋·푸시하기 위해 필요하다
 permissions:
@@ -22,7 +22,7 @@ concurrency:
 jobs:
   learn:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -61,7 +61,7 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
           NOTION_DS_ID: ${{ secrets.NOTION_DS_ID }}
-        run: bash scripts/run-daily.sh "${{ github.event.inputs.mode || 'daily' }}"
+        run: bash scripts/run-daily.sh "${{ github.event.inputs.mode || 'auto' }}"
 
       # 성공한 날만 학습 기록을 커밋한다 → 잔디.
       # 작성자를 본인 noreply 주소로 해야 contribution 으로 집계된다

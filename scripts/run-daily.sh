@@ -26,9 +26,24 @@ DOW_NUM=$(date +%u)                       # 1=월 ... 7=일
 DOW_KO=$(echo "월 화 수 목 금 토 일" | cut -d' ' -f"$DOW_NUM")
 LOG_FILE="logs/daily_$(date +%Y%m%d_%H%M%S).log"
 
-MODE="${1:-daily}"                        # daily | weekly
-PROMPT_FILE="prompts/daily.md"
-[ "$MODE" = "weekly" ] && PROMPT_FILE="prompts/weekly.md"
+MODE="${1:-auto}"                         # auto | daily | weekend | weekly
+# auto: 평일은 CS 학습(daily), 토·일은 IT 트렌드(weekend)
+if [ "$MODE" = "auto" ]; then
+  MODE="daily"
+  [ "$DOW_NUM" -ge 6 ] && MODE="weekend"
+fi
+
+ALLOWED_TOOLS="mcp__notion__*,Read"
+case "$MODE" in
+  daily)   PROMPT_FILE="prompts/daily.md" ;;
+  weekly)  PROMPT_FILE="prompts/weekly.md" ;;
+  weekend)
+    PROMPT_FILE="prompts/weekend.md"
+    # 지난 한 주 화제를 찾으려면 웹 검색이 필요하다
+    ALLOWED_TOOLS="${ALLOWED_TOOLS},WebSearch,WebFetch"
+    ;;
+  *) echo "알 수 없는 mode: $MODE (auto | daily | weekend | weekly)"; exit 1 ;;
+esac
 
 echo "[$TODAY $DOW_KO] CS Daily 시작 (mode=$MODE)" | tee -a "$LOG_FILE"
 
@@ -49,7 +64,7 @@ echo "[$TODAY $DOW_KO] CS Daily 시작 (mode=$MODE)" | tee -a "$LOG_FILE"
 CTX
 } | claude -p \
   --mcp-config .mcp.json \
-  --allowed-tools "mcp__notion__*,Read" \
+  --allowed-tools "$ALLOWED_TOOLS" \
   --permission-mode acceptEdits \
   --output-format text \
   2>&1 | tee -a "$LOG_FILE"
@@ -72,7 +87,7 @@ if [ "$EXIT_CODE" -eq 0 ]; then
   else
     CREATED=$(echo "$RESP" | jq -r '.results | length')
     EXPECTED=2
-    [ "$MODE" = "weekly" ] && EXPECTED=1
+    [ "$MODE" != "daily" ] && EXPECTED=1
     if [ "$CREATED" -lt "$EXPECTED" ]; then
       echo "  ✗ 오늘($TODAY) 자 페이지가 ${CREATED}개뿐이다 (기대 ${EXPECTED}개). 위 로그에서 원인을 확인해라." | tee -a "$LOG_FILE"
       EXIT_CODE=1

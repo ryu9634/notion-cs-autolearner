@@ -1,16 +1,19 @@
 # CS Daily — Java/Backend Auto-learner
 
-매일 새벽 5시(KST) GitHub Actions가 Claude Code를 무인 실행해서
-Notion DB에 자바/백엔드 CS 학습 페이지를 자동으로 쌓는다.
+매일 새벽 5시(KST) GitHub Actions가 Claude Code를 무인 실행해서 Notion DB에 페이지를 자동으로 쌓는다.
+
+- **평일(월~금)**: 자바/백엔드 CS 학습 페이지 2개 (`prompts/daily.md`)
+- **주말(토·일)**: 지난 7일간 화제였던 IT 이슈 TOP 10 트렌드 페이지 1개 (`prompts/weekend.md`)
 
 핵심 아이디어는 하나다: **프롬프트를 코드처럼 버전관리하고, 스케줄러가 Claude를 헤드리스로 돌린다.**
 
 ```
-매일 05:00 KST (주말 포함)
+매일 05:00 KST
   → GitHub Actions cron
-  → scripts/run-daily.sh
-  → prompts/daily.md + 런타임 컨텍스트(오늘 날짜/DB ID)를 claude -p 로 파이프
-  → Claude가 Notion DB를 스캔해 진도 판단 → 오늘 주제 2개 선정 → 페이지 생성
+  → scripts/run-daily.sh  (요일 보고 평일=daily / 주말=weekend 자동 선택)
+  → 프롬프트 + 런타임 컨텍스트(오늘 날짜/DB ID)를 claude -p 로 파이프
+  → 평일: Notion DB를 스캔해 진도 판단 → 오늘 주제 2개 선정 → 페이지 생성
+  → 주말: 웹 검색으로 지난 7일 IT 화제 수집 → 10개 선정 → 트렌드 페이지 생성
   → 성공하면 til/YYYY/YYYY-MM-DD.md 에 오늘 주제를 기록해 커밋·푸시 (잔디)
 ```
 
@@ -22,7 +25,8 @@ cs-daily-java/
 ├── .mcp.json                 # Notion MCP 설정
 ├── curriculum.json           # 8 카테고리 × 기초10/응용10 = 160 주제 마스터 데이터
 ├── prompts/
-│   ├── daily.md              # 일일 프롬프트 (진도 판정 + 페이지 생성 규칙)
+│   ├── daily.md              # 평일 프롬프트 (진도 판정 + 페이지 생성 규칙)
+│   ├── weekend.md            # 주말 프롬프트 (IT 핫이슈 TOP 10)
 │   └── weekly.md             # 주간 요약 프롬프트
 ├── scripts/
 │   ├── run-daily.sh          # 메인 실행기 (로컬/CI 공용)
@@ -46,9 +50,16 @@ cs-daily-java/
 | ⚙️ 운영체제/인프라 | low | 10 | 10 |
 | 🔐 보안/인증 | low | 10 | 10 |
 
-하루 2주제 × 매일 → **160주제 ≈ 80일** 분량. 기한은 없다 —
+하루 2주제 × 평일 → **160주제 ≈ 16주** 분량. 기한은 없다 —
 160주제를 다 쓰면 Claude가 기존 주제를 바탕으로 더 깊은 새 주제를 직접 정해 계속 쓴다(확장 모드).
-요일별로 다룰 카테고리는 `curriculum.json` 의 `weekly_rotation`(월~일) 이 정한다.
+요일별로 다룰 카테고리는 `curriculum.json` 의 `weekly_rotation`(월~금) 이 정한다.
+
+### 주말 IT 트렌드
+
+토·일에는 커리큘럼 대신 Hacker News, GeekNews, Reddit, GitHub Trending, 공식 블로그, 보안 매체 등을
+교차 확인해 지난 7일간 가장 많이 이야기된 IT 이슈(AI, 언어/런타임, 보안, 클라우드, 오픈소스 등) 10개를 정리한다.
+`Category = 📰 IT 트렌드`, `Level = 트렌드` 로 저장되며 진도·주간 요약 카운트에서는 빠진다.
+일요일판은 토요일판과 겹치는 이슈를 빼고 후속 진전이나 새 이슈 위주로 채운다.
 
 ---
 
@@ -62,7 +73,7 @@ Notion에서 새 데이터베이스(표)를 만들고 property를 **정확히 �
 |---|---|---|
 | `Title` | 제목 | 주제명 |
 | `Category` | 선택 | 카테고리 |
-| `Level` | 선택 | 기초 / 응용 / 요약 |
+| `Level` | 선택 | 기초 / 응용 / 요약 / 트렌드 |
 | `Date` | 날짜 | 생성일 (KST) |
 | `Day` | 선택 | 월~일 |
 | `Tags` | 다중 선택 | 키워드 |
@@ -140,7 +151,7 @@ API 크레딧 충전이 필요 없다. 종량과금 API 키를 쓰려면 `ANTHRO
 - **진도의 단일 출처는 Notion DB.** 로컬 progress 파일을 만들지 않으므로 어느 환경에서 돌려도 일관된다.
 - **Catch-up 금지.** 어제 페이지가 없어도 어제 자를 만들지 않는다. 빠진 날은 의도된 일시정지.
 - **중복 금지.** DB에 이미 있는 주제는 다시 안 뽑는다.
-- **기한 없음.** 주말 포함 매일 돌고, 커리큘럼을 완주하면 확장 모드로 계속 쓴다.
+- **평일은 학습, 주말은 트렌드.** 커리큘럼을 완주하면 확장 모드로 계속 쓴다 (기한 없음).
 - **잔디.** 성공한 날만 `til/` 에 기록을 커밋한다. 작성자를 본인 noreply 주소로 해야
   contribution 으로 집계된다 (워크플로의 `Commit study log` 스텝).
 - **주간 요약**은 요일이 아니라 *마지막 요약 이후 누적 10주제 도달 시* 자동 생성된다.
@@ -150,12 +161,15 @@ API 크레딧 충전이 필요 없다. 종량과금 API 키를 쓰려면 `ANTHRO
 
 - 주제를 바꾸고 싶다 → `curriculum.json` 배열 수정 (배열 순서 = 학습 순서)
 - 페이지 본문 구성을 바꾸고 싶다 → `prompts/daily.md` 의 Step 5
+- 주말 트렌드 출처·분야 비율을 바꾸고 싶다 → `prompts/weekend.md` 의 Step 3~4
 - 요일별 카테고리를 바꾸고 싶다 → `curriculum.json` 의 `weekly_rotation`
 - 실행 시각을 바꾸고 싶다 → `.github/workflows/daily.yml` 의 cron (UTC 기준으로 적어야 함)
 
 ## 수동 실행
 
 ```bash
-bash scripts/run-daily.sh            # 일일 실행 (til/ 파일은 생기지만 커밋은 직접)
+bash scripts/run-daily.sh            # 요일에 맞게 자동 (til/ 파일은 생기지만 커밋은 직접)
+bash scripts/run-daily.sh daily      # 요일 무관하게 CS 학습 페이지
+bash scripts/run-daily.sh weekend    # 요일 무관하게 IT 트렌드 페이지
 bash scripts/run-weekly.sh           # 주간 요약만
 ```
