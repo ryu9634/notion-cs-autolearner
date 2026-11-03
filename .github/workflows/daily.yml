@@ -2,14 +2,18 @@ name: CS Daily
 
 on:
   schedule:
-    # KST 07:00 월~금  =  UTC 22:00 일~목
-    - cron: '0 22 * * 0-4'
+    # KST 05:00 매일  =  UTC 20:00 (전날)
+    - cron: '0 20 * * *'
   workflow_dispatch:
     inputs:
       mode:
         description: 'daily 또는 weekly'
         required: false
         default: 'daily'
+
+# 학습 기록(til/)을 레포에 커밋·푸시하기 위해 필요하다
+permissions:
+  contents: write
 
 concurrency:
   group: cs-daily
@@ -58,6 +62,24 @@ jobs:
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
           NOTION_DS_ID: ${{ secrets.NOTION_DS_ID }}
         run: bash scripts/run-daily.sh "${{ github.event.inputs.mode || 'daily' }}"
+
+      # 성공한 날만 학습 기록을 커밋한다 → 잔디.
+      # 작성자를 본인 noreply 주소로 해야 contribution 으로 집계된다
+      # (github-actions[bot] 이름으로 커밋하면 잔디가 안 심긴다).
+      # 레포에 주기적으로 커밋이 생기므로 "60일 무활동 시 schedule 자동 비활성화"도 함께 막힌다.
+      - name: Commit study log
+        if: success()
+        run: |
+          git config user.name "ryu9634"
+          git config user.email "95685556+ryu9634@users.noreply.github.com"
+          git add til/
+          if git diff --cached --quiet; then
+            echo "커밋할 변경 없음"
+            exit 0
+          fi
+          git commit -m "TIL: $(TZ=Asia/Seoul date +%Y-%m-%d) CS Daily"
+          git pull --rebase origin main
+          git push origin HEAD:main
 
       - name: Upload log
         if: always()

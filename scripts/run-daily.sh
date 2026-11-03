@@ -30,12 +30,6 @@ MODE="${1:-daily}"                        # daily | weekly
 PROMPT_FILE="prompts/daily.md"
 [ "$MODE" = "weekly" ] && PROMPT_FILE="prompts/weekly.md"
 
-# 주말 기본 동작: daily 를 돌리지 않는다 (인자로 강제하면 돈다)
-if [ "$MODE" = "daily" ] && [ "$DOW_NUM" -ge 6 ] && [ -z "${FORCE:-}" ]; then
-  echo "[$TODAY $DOW_KO] 주말이라 skip. 강제 실행은 FORCE=1." | tee -a "$LOG_FILE"
-  exit 0
-fi
-
 echo "[$TODAY $DOW_KO] CS Daily 시작 (mode=$MODE)" | tee -a "$LOG_FILE"
 
 # 프롬프트 + 런타임 컨텍스트(날짜/ID)를 합쳐서 헤드리스 Claude 에 파이프
@@ -84,6 +78,19 @@ if [ "$EXIT_CODE" -eq 0 ]; then
       EXIT_CODE=1
     else
       echo "  ✓ 오늘($TODAY) 자 페이지 ${CREATED}개 확인" | tee -a "$LOG_FILE"
+
+      # 학습 기록을 레포에 남긴다 (CI 가 이 파일을 커밋해서 잔디가 심긴다).
+      # 매번 DB 기준으로 통째로 다시 쓰므로 재실행해도 내용이 중복되지 않는다.
+      TIL_FILE="til/${TODAY:0:4}/${TODAY}.md"
+      mkdir -p "$(dirname "$TIL_FILE")"
+      {
+        echo "# ${TODAY} (${DOW_KO})"
+        echo
+        echo "$RESP" | jq -r '.results[]
+          | "- [\(.properties.Title.title | map(.plain_text) | join(""))](\(.url))"
+            + " — \(.properties.Level.select.name // "-") · \(.properties.Category.select.name // "-")"'
+      } > "$TIL_FILE"
+      echo "  ✓ 학습 기록 작성: $TIL_FILE" | tee -a "$LOG_FILE"
     fi
   fi
 fi
